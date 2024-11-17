@@ -4,12 +4,10 @@ import cn.hutool.core.util.StrUtil;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-import com.yuanshuai.config.OscConfig;
+import com.yuanshuai.config.StorageConfig;
 import com.yuanshuai.constants.StorageType;
 import com.yuanshuai.interfaces.StorageClientBuilder;
-import okhttp3.OkHttpClient;
 import io.minio.MinioClient;
-import org.apache.commons.io.IOUtils;
 import com.obs.services.ObsClient;
 import com.obs.services.ObsConfiguration;
 import com.aliyun.oss.ClientBuilderConfiguration;
@@ -26,16 +24,14 @@ import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URI;
-import java.util.HashMap;
-import java.util.Map;
 
 public class StorageClientFactory {
 
-    public static <T> T createClient(StorageType type, OscConfig config) {
+    public static <T> T createClient(StorageType type, StorageConfig config) {
         return createClient(type, config, null);
     }
 
-    public static <T, C> T createClient(StorageType type, OscConfig config, C clientConfig) {
+    public static <T, C> T createClient(StorageType type, StorageConfig config, C clientConfig) {
         validateConfig(config);
         switch (type) {
             case MINIO:
@@ -54,7 +50,7 @@ public class StorageClientFactory {
     }
 
 
-    private static void validateConfig(OscConfig config) {
+    private static void validateConfig(StorageConfig config) {
         if (StrUtil.isBlank(config.getEndpoint())) {
             throw new IllegalArgumentException("端点不能为空");
         }
@@ -142,11 +138,11 @@ public class StorageClientFactory {
 
 
     public static void main(String[] args) {
-        MinioClient client = StorageClientFactory.createClient(StorageType.MINIO, new OscConfig());
-        Storage client1 = StorageClientFactory.createClient(StorageType.GCS, new OscConfig());
-        ObsClient client2 = StorageClientFactory.createClient(StorageType.OBS, new OscConfig());
-        OSS client3 = StorageClientFactory.createClient(StorageType.OSS, new OscConfig());
-        S3Client client4 = StorageClientFactory.createClient(StorageType.S3, new OscConfig());
+        MinioClient client = StorageClientFactory.createClient(StorageType.MINIO, new StorageConfig());
+        Storage client1 = StorageClientFactory.createClient(StorageType.GCS, new StorageConfig());
+        ObsClient client2 = StorageClientFactory.createClient(StorageType.OBS, new StorageConfig());
+        OSS client3 = StorageClientFactory.createClient(StorageType.OSS, new StorageConfig());
+        S3Client client4 = StorageClientFactory.createClient(StorageType.S3, new StorageConfig());
 
     }
 

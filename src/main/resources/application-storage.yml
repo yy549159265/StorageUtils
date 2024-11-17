@@ -5,7 +5,7 @@ spring:
       enabled: true #开启文件上传
       max-file-size: 25MB # 限制文件上传大小为10M
       max-request-size: 100MB
-osc-config:
+storage-config:
   endpoint: http://101.126.129.1:9000
   bucketName: storage
   accessKey: xEZi8r2rSrzyujpfTKpG

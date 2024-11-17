@@ -4,7 +4,7 @@ package com.yuanshuai.controller;
 import cn.hutool.core.util.CharsetUtil;
 import cn.hutool.core.util.URLUtil;
 import com.yuanshuai.api.CommonResult;
-import com.yuanshuai.config.OscConfig;
+import com.yuanshuai.config.StorageConfig;
 import com.yuanshuai.constants.StorageType;
 import com.yuanshuai.domain.dto.MinioFileInfo;
 import com.yuanshuai.factory.StorageClientFactory;
@@ -23,12 +23,12 @@ import java.util.Map;
 @RequestMapping("/minio")
 public class MinioContorller {
 
-    private final OscConfig oscConfig;
+    private final StorageConfig storageConfig;
     private final MinioTool utils;
 
-    public MinioContorller(OscConfig oscConfig) {
-        this.oscConfig = oscConfig;
-        MinioClient client = StorageClientFactory.createClient(StorageType.MINIO, oscConfig);
+    public MinioContorller(StorageConfig storageConfig) {
+        this.storageConfig = storageConfig;
+        MinioClient client = StorageClientFactory.createClient(StorageType.MINIO, storageConfig);
         this.utils = StorageUtilsFactory.createUtils(StorageType.MINIO, client);
     }
 

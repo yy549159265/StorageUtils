@@ -4,7 +4,7 @@ import cn.hutool.crypto.digest.DigestUtil;
 import com.obs.services.ObsClient;
 import com.obs.services.ObsConfiguration;
 import com.obs.services.model.*;
-import com.yuanshuai.config.OscConfig;
+import com.yuanshuai.config.StorageConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -34,14 +34,14 @@ public class OBSUtils {
     private final String GbucketName;
     private final String Gregion;
 
-    public OBSUtils(OscConfig config, ObsConfiguration obsConfiguration) {
+    public OBSUtils(StorageConfig config, ObsConfiguration obsConfiguration) {
         obsConfiguration.setEndPoint(config.getEndpoint());
         obsClient = new ObsClient(config.getAccessKey(), config.getSecretKey(), obsConfiguration);
         GbucketName = config.getBucketName();
         Gregion = config.getRegion();
     }
     /** 华为云兼容s3 */
-    public OBSUtils(OscConfig config, S3ClientBuilder builder) {
+    public OBSUtils(StorageConfig config, S3ClientBuilder builder) {
         Region region = Region.of(config.getRegion());
         AwsBasicCredentials awsCreds = AwsBasicCredentials.create(
                 config.getAccessKey(), // AK，即Access Key ID

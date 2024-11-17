@@ -10,8 +10,8 @@ import org.springframework.context.annotation.Configuration;
 @NoArgsConstructor
 @AllArgsConstructor
 @Configuration
-@ConfigurationProperties(prefix = "osc-config")
-public class OscConfig {
+@ConfigurationProperties(prefix = "storage-config")
+public class StorageConfig {
 
     private String endpoint;
     private String accessKey;
