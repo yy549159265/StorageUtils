@@ -137,15 +137,6 @@ public class StorageClientFactory {
     };
 
 
-    public static void main(String[] args) {
-        MinioClient client = StorageClientFactory.createClient(StorageType.MINIO, new StorageConfig());
-        Storage client1 = StorageClientFactory.createClient(StorageType.GCS, new StorageConfig());
-        ObsClient client2 = StorageClientFactory.createClient(StorageType.OBS, new StorageConfig());
-        OSS client3 = StorageClientFactory.createClient(StorageType.OSS, new StorageConfig());
-        S3Client client4 = StorageClientFactory.createClient(StorageType.S3, new StorageConfig());
-
-    }
-
 }
 
 
