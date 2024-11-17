@@ -1,4 +1,4 @@
-package com.yuanshuai.domain.dto;
+package com.yuanshuai.domain.minio;
 
 
 import lombok.AllArgsConstructor;

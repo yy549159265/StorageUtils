@@ -6,7 +6,7 @@ import cn.hutool.core.util.URLUtil;
 import com.yuanshuai.api.CommonResult;
 import com.yuanshuai.config.StorageConfig;
 import com.yuanshuai.constants.StorageType;
-import com.yuanshuai.domain.dto.MinioFileInfo;
+import com.yuanshuai.domain.minio.MinioFileInfo;
 import com.yuanshuai.factory.StorageClientFactory;
 import com.yuanshuai.factory.StorageUtilsFactory;
 import com.yuanshuai.utils.MinioTool;
