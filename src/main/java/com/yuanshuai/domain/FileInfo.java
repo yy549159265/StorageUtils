@@ -1,4 +1,4 @@
-package com.yuanshuai.domain.minio;
+package com.yuanshuai.domain;
 
 
 import lombok.AllArgsConstructor;
@@ -10,7 +10,7 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class MinioFileInfo {
+public class FileInfo {
 
     /**
      * 桶名称
@@ -28,9 +28,15 @@ public class MinioFileInfo {
     private String fileMd5;
 
     /**
-     * 需要上下传文件uid
+     * 需要上下传文件id(s3使用)
      */
     private String uploadId;
+
+    /**
+     * 分片上传的url
+     */
+    private String uploadUrl;
+
 
     /**
      * 总分片
