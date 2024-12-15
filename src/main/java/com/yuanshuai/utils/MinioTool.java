@@ -8,11 +8,10 @@ import cn.hutool.core.util.HexUtil;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.DigestUtil;
-import com.yuanshuai.domain.minio.MinioFileInfo;
-import com.yuanshuai.domain.minio.MinioListResult;
+import com.yuanshuai.domain.FileInfo;
+import com.yuanshuai.domain.ListResult;
 import io.minio.*;
 import io.minio.messages.Bucket;
-import io.minio.messages.DeleteError;
 import io.minio.messages.DeleteObject;
 import io.minio.messages.Item;
 import lombok.extern.slf4j.Slf4j;
@@ -78,9 +77,9 @@ public class MinioTool {
      * @param bucketNameList 桶名列表
      * @return true/false
      */
-    public List<Boolean> isBucketExists(List<String> bucketNameList) {
+    public List<ListResult> isBucketExists(List<String> bucketNameList) {
         return bucketNameList.stream()
-                .map(this::isBucketExists)
+                .map(item -> new ListResult(item, isBucketExists(item)))
                 .collect(Collectors.toList());
     }
 
@@ -114,9 +113,9 @@ public class MinioTool {
      * @param bucketNameList 桶名列表
      * @return true/false
      */
-    public List<Boolean> createBucket(List<String> bucketNameList) {
+    public List<ListResult> createBucket(List<String> bucketNameList) {
         return bucketNameList.stream()
-                .map(this::createBucket)
+                .map(item -> new ListResult(item, createBucket(item)))
                 .collect(Collectors.toList());
     }
 
@@ -133,14 +132,16 @@ public class MinioTool {
                         .bucket(bucketName)
                         .build());
                 log.info("删除桶" + bucketName + "成功");
+                return true;
             } else {
                 log.info("桶" + bucketName + "不存在");
+                return false;
             }
         } catch (Exception e) {
             log.error("删除桶时发生错误: " + e.getMessage());
             return false;
         }
-        return true;
+
     }
 
     /**
@@ -149,9 +150,9 @@ public class MinioTool {
      * @param bucketNameList 桶名列表
      * @return true/false
      */
-    public List<Boolean> deleteBucket(List<String> bucketNameList) {
+    public List<ListResult> deleteBucket(List<String> bucketNameList) {
         return bucketNameList.stream()
-                .map(this::deleteBucket)
+                .map(item -> new ListResult(item, deleteBucket(item)))
                 .collect(Collectors.toList());
     }
 
@@ -172,10 +173,12 @@ public class MinioTool {
                     .tags(tags)
                     .build());
             log.info("设置桶" + bucketName + "标签成功");
+            return true;
         } catch (Exception e) {
             log.error("设置桶标签时发生错误: " + e.getMessage());
+            return false;
         }
-        return true;
+
     }
 
     /**
@@ -281,7 +284,7 @@ public class MinioTool {
     public List<Item> listObjects(String bucketName) {
         return listObjects(bucketName, null, 0, true);
     }
-    private List<Item> fetchObjects(String bucketName, String prefix, int maxKeys, Boolean recursive) throws Exception {
+    private List<Item> fetchObjects(String bucketName, String prefix, int maxKeys, Boolean recursive) {
         List<Item> objectList = new ArrayList<>();
         try {
             ListObjectsArgs.Builder builder = ListObjectsArgs.builder().bucket(bucketName);
@@ -363,11 +366,7 @@ public class MinioTool {
                     .objects(deleteObjects)
                     .build();
 
-            Iterable<Result<DeleteError>> results = minioClient.removeObjects(build);
-            for (Result<DeleteError> result : results) {
-                DeleteError error = result.get();
-                log.error("删除对象失败: " + error.objectName() + " - " + error.message());
-            }
+            minioClient.removeObjects(build);
             return true; // 此处返回true，即使部分删除失败
         } catch (Exception e) {
             log.error("删除对象失败: " + e.getMessage(), e);
@@ -379,11 +378,9 @@ public class MinioTool {
             if (!isBucketExists(bucketName)) {
                 log.info("桶不存在，无法删除");
             }
-            ListObjectsArgs.Builder argsBuilder = ListObjectsArgs.builder().bucket(bucketName).prefix(dir);
-            Iterable<Result<Item>> results = minioClient.listObjects(argsBuilder.build());
+            List<Item> items = listObjects(bucketName, dir);
             List<String> objectNames = new ArrayList<>();
-            for (Result<Item> result : results) {
-                Item item = result.get();
+            for (Item item : items) {
                 objectNames.add(item.objectName());
             }
             if (CollectionUtil.isEmpty(objectNames)) {
@@ -430,23 +427,23 @@ public class MinioTool {
         }
         return false;
     }
-    public List<MinioListResult> copyObjectList(String sourceBucketName, List<String> sourceObjectName, String targetBucketName) {
-        List<MinioListResult> minioCopyObjectResultArrayList = new ArrayList<>();
-        sourceObjectName.forEach(item -> minioCopyObjectResultArrayList.add(new MinioListResult(item, copyObject(sourceBucketName, item, targetBucketName, item))));
-        return minioCopyObjectResultArrayList;
+    public List<ListResult> copyObjectList(String sourceBucketName, List<String> sourceObjectName, String targetBucketName) {
+        List<ListResult> resultList = new ArrayList<>();
+        sourceObjectName.forEach(item -> resultList.add(new ListResult(item, copyObject(sourceBucketName, item, targetBucketName, item))));
+        return resultList;
     }
-    public List<MinioListResult> copyBucket(String sourceBucketName, String targetBucketName) {
-        List<MinioListResult> minioCopyObjectResultArrayList = new ArrayList<>();
+    public List<ListResult> copyBucket(String sourceBucketName, String targetBucketName) {
+        List<ListResult> resultList = new ArrayList<>();
         listObjects(sourceBucketName).stream()
                 .map(Item::objectName)
-                .forEach(item -> minioCopyObjectResultArrayList.add(new MinioListResult(item, copyObject(sourceBucketName, item, targetBucketName, item))));
-        return minioCopyObjectResultArrayList;
+                .forEach(item -> resultList.add(new ListResult(item, copyObject(sourceBucketName, item, targetBucketName, item))));
+        return resultList;
     }
 
     /**
      * 复制某个目录到其他目录，目录下所有文件都复制到目标目录下
      */
-    public List<MinioListResult> copyObjectDir(String sourceBucketName, String sourceDir, String targetBucketName, String targetDir) {
+    public List<ListResult> copyObjectDir(String sourceBucketName, String sourceDir, String targetBucketName, String targetDir) {
         try {
             if (!isBucketExists(sourceBucketName)) {
                 log.info("源桶不存在");
@@ -457,13 +454,13 @@ public class MinioTool {
                 return Collections.emptyList();
             }
             List<Item> items = listObjects(sourceBucketName, sourceDir);
-            List<MinioListResult> minioCopyObjectResultArrayList = new ArrayList<>();
+            List<ListResult> resultList = new ArrayList<>();
             for (Item item : items) {
                 String objectName = item.objectName();
                 String targetObjectName = targetDir + objectName.substring(sourceDir.length());
-                minioCopyObjectResultArrayList.add(new MinioListResult(objectName, copyObject(sourceBucketName, objectName, targetBucketName, targetObjectName)));
+                resultList.add(new ListResult(objectName, copyObject(sourceBucketName, objectName, targetBucketName, targetObjectName)));
             }
-            return minioCopyObjectResultArrayList;
+            return resultList;
         } catch (Exception e) {
             log.error("复制目录失败: " + e.getMessage());
 
@@ -579,7 +576,7 @@ public class MinioTool {
      * @param fileUrl    文件URL
      * @return true/false
      */
-    public Boolean uploadUrlFile(String bucketName, String objectName, String fileUrl, Map<String, String> userMetadata, Boolean Md5) {
+    public Boolean uploadUrlFile(String bucketName, String objectName, String fileUrl, Map<String, String> userMetadata) {
         try (InputStream uploadInputStream = new URL(fileUrl).openStream()) {
             // 获取文件大小
             HttpURLConnection connection = (HttpURLConnection) new URL(fileUrl).openConnection();
@@ -591,13 +588,13 @@ public class MinioTool {
                     .object(objectName)
                     .stream(uploadInputStream, fileSize, -1)
                     .contentType("application/octet-stream");
-            if (Md5) {
-                // 读取流会造成流的指针位置改变，导致无法获取流的MD5值，因此需要重新读取流
-                InputStream md5InputStream = new URL(fileUrl).openStream();
-                String md5 = DigestUtil.md5Hex(md5InputStream);
-                userMetadata.put("File-Md5", md5);
-                builder.userMetadata(userMetadata);
-            }
+
+            // 读取流会造成流的指针位置改变，导致无法获取流的MD5值，因此需要重新读取流
+            InputStream md5InputStream = new URL(fileUrl).openStream();
+            String md5 = DigestUtil.md5Hex(md5InputStream);
+            userMetadata.put("File-Md5", md5);
+            builder.userMetadata(userMetadata);
+
             minioClient.putObject(builder.build());
             log.info("上传文件" + objectName + "成功");
             return true;
@@ -607,7 +604,7 @@ public class MinioTool {
         return false;
     }
     public Boolean uploadUrlFile(String bucketName, String objectName, String fileUrl) {
-        return uploadUrlFile(bucketName, objectName, fileUrl, new HashMap<>() ,true);
+        return uploadUrlFile(bucketName, objectName, fileUrl, new HashMap<>());
     }
 
     /**
@@ -673,14 +670,14 @@ public class MinioTool {
     }
 
     // 简单获取文件信息
-    public MinioFileInfo createMinioFileInfo(String filePath, Long partSize, String bucketName, String objectName, String uploadId) {
+    public FileInfo createMinioFileInfo(String filePath, Long partSize, String bucketName, String objectName, String uploadId) {
         Path path = Paths.get(filePath);
         try (InputStream fis = Files.newInputStream(path)) {
             String fileMd5 = DigestUtil.md5Hex(fis);
             // 计算总分片数，并计算每个分片的MD5
             long fileSize = Files.size(path);
             long totalNum = fileSize / partSize + (fileSize % partSize > 0 ? 1 : 0);
-            List<MinioFileInfo.PartInfo> parts = new ArrayList<>();
+            List<FileInfo.PartInfo> parts = new ArrayList<>();
             for (int i = 1; i <= totalNum; i++) {
                 long start = (i - 1) * partSize;
                 long end = i * partSize - 1;
@@ -690,20 +687,20 @@ public class MinioTool {
                 // 计算bytes[]
                 byte[] bytes = new byte[(int) (end - start + 1)];
                 String partMd5 = DigestUtil.md5Hex(bytes);
-                MinioFileInfo.PartInfo partInfo = new MinioFileInfo.PartInfo();
+                FileInfo.PartInfo partInfo = new FileInfo.PartInfo();
                 partInfo.setCurrentNum(StrUtil.toString(i));
                 partInfo.setPartMd5(partMd5);
                 parts.add(partInfo);
             }
 
-            MinioFileInfo minioFileInfo = new MinioFileInfo();
-            minioFileInfo.setBucketName(bucketName);
-            minioFileInfo.setObjectName(objectName);
-            minioFileInfo.setUploadId(uploadId);
-            minioFileInfo.setTotalNum(StrUtil.toString(totalNum));
-            minioFileInfo.setFileMd5(fileMd5);
-            minioFileInfo.setParts(parts);
-            return minioFileInfo;
+            FileInfo fileInfo = new FileInfo();
+            fileInfo.setBucketName(bucketName);
+            fileInfo.setObjectName(objectName);
+            fileInfo.setUploadId(uploadId);
+            fileInfo.setTotalNum(StrUtil.toString(totalNum));
+            fileInfo.setFileMd5(fileMd5);
+            fileInfo.setParts(parts);
+            return fileInfo;
         } catch (Exception e) {
             log.error("计算分片MD5时发生错误: " + e.getMessage());
         }
@@ -714,47 +711,47 @@ public class MinioTool {
      * 上传分片，仅支持分片小于5mb的分片
      *
      * @param tmpPath       分片上传的临时路径，若不指定，则默认在tmpFilePart/uploadId/下
-     * @param minioFileInfo 文件详细信息
+     * @param fileInfo 文件详细信息
      * @param files         分片文件列表
      * @param Md5           是否开启md5校验，不开启为普通分片上传，开启为断点续传上传
      * @return true/false
      * minioFileInfo和file，需要使用RequestPart注解
-     * minioFileInfo 需要content-type为application/json
+     * fileInfo 需要content-type为application/json
      */
-    public Boolean multipartUpload(String tmpPath, MinioFileInfo minioFileInfo, List<MultipartFile> files , Map<String, String> userMetadata, Boolean Md5) {
-        List<MinioFileInfo.PartInfo> parts = minioFileInfo.getParts();
+    public Boolean multipartUpload(String tmpPath, FileInfo fileInfo, List<MultipartFile> files , Map<String, String> userMetadata, Boolean Md5) {
+        List<FileInfo.PartInfo> parts = fileInfo.getParts();
         if (CollectionUtil.isEmpty(parts) || CollectionUtil.isEmpty(files) || parts.size() != files.size()) {
             log.error("分片信息与分片文件数量不匹配");
             return false;
         }
         for (int i = 0; i < files.size(); i++) {
             try (InputStream inputStream = files.get(i).getInputStream()) {
-                String tempPartName = tmpPath + "/" + minioFileInfo.getUploadId() + "/part-" + parts.get(i).getCurrentNum();
+                String tempPartName = tmpPath + "/" + fileInfo.getUploadId() + "/part-" + parts.get(i).getCurrentNum();
                 if (Md5) {
                     String filePartMd5 = DigestUtil.md5Hex(inputStream);
                     String partMd5 = parts.get(i).getPartMd5();
 
                     // 检验分片MD5
                     if (!filePartMd5.equals(partMd5)) {
-                        log.error("{}文件的分片{} MD5 异常，请检查", minioFileInfo.getObjectName(), parts.get(i).getCurrentNum());
+                        log.error("{}文件的分片{} MD5 异常，请检查", fileInfo.getObjectName(), parts.get(i).getCurrentNum());
                         return false;
                     }
 
                     // 检验分片是否已上传
 
-                    if (isObjectExists(minioFileInfo.getBucketName(), tempPartName)) {
-                        log.info("{}文件的分片{}已存在，无需上传", minioFileInfo.getObjectName(), parts.get(i).getCurrentNum());
+                    if (isObjectExists(fileInfo.getBucketName(), tempPartName)) {
+                        log.info("{}文件的分片{}已存在，无需上传", fileInfo.getObjectName(), parts.get(i).getCurrentNum());
                         continue;
                     }
                 }
-                log.info("开始上传 {} 文件的分片{}", minioFileInfo.getObjectName(), parts.get(i).getCurrentNum());
-                userMetadata.put("Upload-Id", minioFileInfo.getUploadId());
-                userMetadata.put("Total-Num", minioFileInfo.getTotalNum());
+                log.info("开始上传 {} 文件的分片{}", fileInfo.getObjectName(), parts.get(i).getCurrentNum());
+                userMetadata.put("Upload-Id", fileInfo.getUploadId());
+                userMetadata.put("Total-Num", fileInfo.getTotalNum());
                 userMetadata.put("Current-Num", parts.get(i).getCurrentNum());
                 userMetadata.put("Part-Md5", parts.get(i).getPartMd5());
 
                 PutObjectArgs builder = PutObjectArgs.builder()
-                        .bucket(minioFileInfo.getBucketName())
+                        .bucket(fileInfo.getBucketName())
                         .object(tempPartName)
                         .stream(files.get(i).getInputStream(), files.get(i).getSize(), -1)
                         .userMetadata(userMetadata)
@@ -764,49 +761,49 @@ public class MinioTool {
                 minioClient.putObject(builder);
                 log.info("分片{}上传成功", parts.get(i).getCurrentNum());
             } catch (Exception e) {
-                log.error(StrUtil.format("{}文件的分片{}上传文件时发生错误: {}", minioFileInfo.getObjectName(), parts.get(i).getCurrentNum(), e.getMessage()));
+                log.error(StrUtil.format("{}文件的分片{}上传文件时发生错误: {}", fileInfo.getObjectName(), parts.get(i).getCurrentNum(), e.getMessage()));
                 return false;
             }
         }
-        log.info("{}文件的分片上传完成", minioFileInfo.getObjectName());
+        log.info("{}文件的分片上传完成", fileInfo.getObjectName());
         return true;
     }
-    public Boolean multipartUpload(MinioFileInfo minioFileInfo, List<MultipartFile> files) {
-        return multipartUpload("tmpFilePart", minioFileInfo, files,new HashMap<>(), false);
+    public Boolean multipartUpload(FileInfo fileInfo, List<MultipartFile> files) {
+        return multipartUpload("tmpFilePart", fileInfo, files,new HashMap<>(), false);
     }
-    public Boolean multipartUpload(MinioFileInfo minioFileInfo, List<MultipartFile> files, Boolean Md5) {
-        return multipartUpload("tmpFilePart", minioFileInfo, files, new HashMap<>(),Md5);
+    public Boolean multipartUpload(FileInfo fileInfo, List<MultipartFile> files, Boolean Md5) {
+        return multipartUpload("tmpFilePart", fileInfo, files, new HashMap<>(),Md5);
     }
 
     /**
      * 合并分片上传
      *
      * @param tmpPath       分片上传的临时路径，若不指定，则默认在tmpFilePart/uploadId/下
-     * @param minioFileInfo 文件详细信息
-     * @param Md5           是否开启md5校验，不开启为普通分片上传，开启为断点续传上传
+     * @param fileInfo 文件详细信息
+     * @param Md5           是否开启md5校验，不开启为普通分片合并，开启可启动秒传
      *                      开启md5多一次api调用，但可以保证上传的完整性
      * @return
      */
-    public Boolean composeMultipartUpload(String tmpPath, MinioFileInfo minioFileInfo, Map<String, String> userMetadata,Boolean Md5) {
+    public Boolean composeMultipartUpload(String tmpPath, FileInfo fileInfo, Map<String, String> userMetadata, Boolean Md5) {
         try {
-            List<Item> items = listObjects(minioFileInfo.getBucketName(), tmpPath + "/" + minioFileInfo.getUploadId());
+            List<Item> items = listObjects(fileInfo.getBucketName(), tmpPath + "/" + fileInfo.getUploadId());
 
             // 检查目标对象是否已经存在
             if (Md5) {
-                StatObjectResponse object = getObject(minioFileInfo.getBucketName(), minioFileInfo.getObjectName());
+                StatObjectResponse object = getObject(fileInfo.getBucketName(), fileInfo.getObjectName());
                 String calculatedEtag = object.userMetadata().get("etag");
                 if (object.etag().equals(calculatedEtag)) {
-                    log.info("分片已存在且MD5匹配，无需合并");
+                    log.info("文件已存在且MD5匹配，无需合并");
                     return true; // 直接返回，表示无需再次合并,秒传
                 }
             }
 
             // 查询分片对象
-            if (Convert.toInt(minioFileInfo.getTotalNum()) != items.size()) {
-                log.error(String.format("分片数量不一致，合并失败，提供分片数量：%s，查询到分片数量：%s", minioFileInfo.getTotalNum(), items.size()));
+            if (Convert.toInt(fileInfo.getTotalNum()) != items.size()) {
+                log.error(String.format("分片数量不一致，合并失败，提供分片数量：%s，查询到分片数量：%s", fileInfo.getTotalNum(), items.size()));
                 return false;
             }
-            List<String> partMd5List = minioFileInfo.getParts().stream()
+            List<String> partMd5List = fileInfo.getParts().stream()
                     .map(item -> item.getPartMd5())
                     .collect(Collectors.toList());
             String calculatedEtag = calculateETag(partMd5List, partMd5List.size());
@@ -816,22 +813,21 @@ public class MinioTool {
             // 构建ComposeObjectArgs
             List<ComposeSource> sources = items.stream()
                     .map(item -> ComposeSource.builder()
-                            .bucket(minioFileInfo.getBucketName())
+                            .bucket(fileInfo.getBucketName())
                             .object(item.objectName())
                             .build())
                     .collect(Collectors.toList());
 
             ComposeObjectArgs composeObjectArgs = ComposeObjectArgs.builder()
-                    .bucket(minioFileInfo.getBucketName())
-                    .object(minioFileInfo.getObjectName())
+                    .bucket(fileInfo.getBucketName())
+                    .object(fileInfo.getObjectName())
                     .sources(sources)
                     .userMetadata(userMetadata)
                     .build();
             // 合并分片
             minioClient.composeObject(composeObjectArgs);
-
             // 删除临时文件
-            if (deleteObject(minioFileInfo.getBucketName(), items.stream().map(Item::objectName).collect(Collectors.toList()))) {
+            if (deleteObject(fileInfo.getBucketName(), items.stream().map(Item::objectName).collect(Collectors.toList()))) {
                 log.info("合并分片成功，删除临时分片成功");
             }
             return true;
@@ -840,11 +836,11 @@ public class MinioTool {
         }
         return false;
     }
-    public Boolean composeMultipartUpload(MinioFileInfo minioFileInfo, Boolean Md5) {
-        return composeMultipartUpload("tmpFilePart", minioFileInfo, new HashMap<>(), Md5);
+    public Boolean composeMultipartUpload(FileInfo fileInfo, Boolean Md5) {
+        return composeMultipartUpload("tmpFilePart", fileInfo, new HashMap<>(), Md5);
     }
-    public Boolean composeMultipartUpload(MinioFileInfo minioFileInfo) {
-        return composeMultipartUpload("tmpFilePart", minioFileInfo, new HashMap<>(), false);
+    public Boolean composeMultipartUpload(FileInfo fileInfo) {
+        return composeMultipartUpload("tmpFilePart", fileInfo, new HashMap<>(), false);
     }
 
     /**
@@ -1003,47 +999,5 @@ public class MinioTool {
     }
     /****************************************/
 
-
-//    public List<MinioListResult> copyObjectList(String sourceBucketName, List<String> sourceObjectName, String targetBucketName) {
-//        List<MinioListResult> minioCopyObjectResultArrayList = new ArrayList<>();
-//        sourceObjectName.forEach(item -> minioCopyObjectResultArrayList.add(new MinioListResult(item, copyObject(sourceBucketName, item, targetBucketName, item))));
-//        return minioCopyObjectResultArrayList;
-//    }
-//
-//    public List<MinioListResult> copyBucket(String sourceBucketName, String targetBucketName) {
-//        List<MinioListResult> minioCopyObjectResultArrayList = new ArrayList<>();
-//        listObjects(sourceBucketName).stream()
-//                .map(MinioObjectStat::getObject)
-//                .forEach(item -> minioCopyObjectResultArrayList.add(new MinioListResult(item, copyObject(sourceBucketName, item, targetBucketName, item))));
-//        return minioCopyObjectResultArrayList;
-//    }
-//
-//    /**
-//     * 复制某个目录到其他目录，目录下所有文件都复制到目标目录下
-//     */
-//    public List<MinioListResult> copyObjectDir(String sourceBucketName, String sourceDir, String targetBucketName, String targetDir) {
-//        try {
-//            if (!isBucketExists(sourceBucketName)) {
-//                log.info("源桶不存在");
-//                return Collections.emptyList();
-//            }
-//            if (!isBucketExists(targetBucketName)) {
-//                log.info("目标桶不存在");
-//                return Collections.emptyList();
-//            }
-//            List<MinioObjectStat> minioObjectStats = listObjects(sourceBucketName, sourceDir);
-//            List<MinioListResult> minioCopyObjectResultArrayList = new ArrayList<>();
-//            for (MinioObjectStat minioObjectStat : minioObjectStats) {
-//                String objectName = minioObjectStat.getObject();
-//                String targetObjectName = targetDir + objectName.substring(sourceDir.length());
-//                minioCopyObjectResultArrayList.add(new MinioListResult(objectName, copyObject(sourceBucketName, objectName, targetBucketName, targetObjectName)));
-//            }
-//            return minioCopyObjectResultArrayList;
-//        } catch (Exception e) {
-//            log.error("复制目录失败: " + e.getMessage());
-//
-//        }
-//        return Collections.emptyList();
-//    }
 
 }
