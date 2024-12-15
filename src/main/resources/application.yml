@@ -1,0 +1,14 @@
+# kafka配置 192.168.56.125
+spring:
+  application:
+    name: all
+  profiles:
+    include:
+      - storage
+  devtools:
+    restart:
+      enabled: true
+      additional-paths: src/main/java
+
+
+
